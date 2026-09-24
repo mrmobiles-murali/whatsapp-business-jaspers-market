@@ -1,203 +1,50 @@
-/**
- * Copyright 2021-present, Facebook, Inc. All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+'use strict';
 
-"use strict";
+const { missingConfiguration } = require('./config');
+const WINDOW_SECONDS = 24 * 60 * 60;
 
-const { FacebookAdsApi } = require('facebook-nodejs-business-sdk');
-const config = require("./config");
+function eligible(message, phoneNumberId, config, now = Date.now()) {
+  if (config.mode !== 'test' || missingConfiguration(config).length) return false;
+  if (!/^\d{5,30}$/.test(config.testPhoneNumberId) || phoneNumberId !== config.testPhoneNumberId) return false;
+  if (!/^v\d+\.\d+$/.test(config.graphVersion)) return false;
+  if (!message || !['text', 'interactive'].includes(message.type)) return false;
+  if (typeof message.id !== 'string' || !message.id || message.id.length > 256) return false;
+  if (typeof message.from !== 'string' || !/^\d{6,15}$/.test(message.from)) return false;
+  if (!config.testRecipients.includes(message.from)) return false;
+  const timestamp = Number(message.timestamp);
+  const age = now / 1000 - timestamp;
+  return Number.isFinite(timestamp) && timestamp > 0 && age >= -60 && age < WINDOW_SECONDS;
+}
 
-const api = new FacebookAdsApi(config.accessToken);
-
-module.exports = class GraphApi {
-  static async #makeApiCall(messageId, senderPhoneNumberId, requestBody) {
-    try {
-      // Mark as read and send typing indicator
-      if (messageId) {
-        const typingBody = {
-          messaging_product: "whatsapp",
-          status: "read",
-          message_id: messageId,
-          "typing_indicator": {
-            "type": "text"
-          }
-        };
-
-        await api.call(
-          'POST',
-          [`${senderPhoneNumberId}`, 'messages'],
-          typingBody
-        );
-      }
-
-
-      const response = await api.call(
-        'POST',
-        [`${senderPhoneNumberId}`, 'messages'],
-        requestBody
-      );
-      console.log('API call successful:', response);
-      return response;
-    } catch (error) {
-      console.error('Error making API call:', error);
-      throw error;
-    }
+async function sendReply({ message, phoneNumberId, reply, config, fetchImpl = fetch, now = Date.now() }) {
+  // Apply the policy at the final network boundary as well as at webhook intake.
+  if (!eligible(message, phoneNumberId, config, now)) throw new Error('SEND_POLICY_BLOCKED');
+  if (!reply || !['text', 'interactive'].includes(reply.type) || reply.template ||
+      (reply.type === 'interactive' && reply.interactive?.type !== 'list')) {
+    throw new Error('MESSAGE_TYPE_BLOCKED');
   }
-
-  static async messageWithInteractiveReply(messageId, senderPhoneNumberId, recipientPhoneNumber, messageText, replyCTAs) {
-    const requestBody = {
-      messaging_product: "whatsapp",
-      to: recipientPhoneNumber,
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: {
-          text: messageText
-        },
-        action: {
-          buttons: replyCTAs.map(cta => ({
-            type: "reply",
-            reply: {
-              id: cta.id,
-              title: cta.title
-            }
-          }))
-        }
-      }
-    };
-
-    return this.#makeApiCall(messageId, senderPhoneNumberId, requestBody);
+  const body = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: message.from,
+    context: { message_id: message.id },
+    type: reply.type,
+    ...(reply.type === 'text' ? { text: reply.text } : { interactive: reply.interactive })
+  };
+  const response = await fetchImpl('https://graph.facebook.com/' + config.graphVersion + '/' + config.testPhoneNumberId + '/messages', {
+    method: 'POST',
+    redirect: 'error',
+    headers: { Authorization: 'Bearer ' + config.accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.messages?.[0]?.id) {
+    // Never put the access token, phone number, message text or raw API error in logs.
+    const code = Number(result.error?.code) || response.status;
+    throw new Error('WHATSAPP_SEND_FAILED_' + code);
   }
+  return result.messages[0].id;
+}
 
-  static async messageWithUtilityTemplate(messageId, senderPhoneNumberId, recipientPhoneNumber, options) {
-    const { templateName, locale, imageLink } = options;
-    const requestBody = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: recipientPhoneNumber,
-      type: "template",
-      template: {
-        "name": templateName,
-        "language": {
-          "code": locale
-        },
-        "components": [
-          {
-            "type": "header",
-            "parameters": [
-              {
-                "type": "image",
-                "image": {
-                  "link": imageLink
-                }
-              }
-            ]
-          },
-        ]
-      }
-    };
-
-    return this.#makeApiCall(messageId, senderPhoneNumberId, requestBody);
-  }
-
-  static async messageWithLimitedTimeOfferTemplate(messageId, senderPhoneNumberId, recipientPhoneNumber, options) {
-
-    const { templateName, locale, imageLink, offerCode } = options;
-
-    const currentTime = new Date();
-    const futureTime = new Date(currentTime.getTime() + (48 * 60 * 60 * 1000));
-
-    const requestBody = {
-      "messaging_product": "whatsapp",
-      "recipient_type": "individual",
-      "to": recipientPhoneNumber,
-      "type": "template",
-      "template": {
-        "name": templateName,
-        "language": {
-          "code": locale
-        },
-        "components": [
-          {
-            "type": "header",
-            "parameters": [
-              {
-                "type": "image",
-                "image": {
-                  "link": imageLink
-                }
-              }
-            ]
-          },
-          {
-            "type": "limited_time_offer",
-            "parameters": [
-              {
-                "type": "limited_time_offer",
-                "limited_time_offer": {
-                  "expiration_time_ms": futureTime.getTime()
-                }
-              }
-            ]
-          },
-          {
-            "type": "button",
-            "sub_type": "copy_code",
-            "index": 0,
-            "parameters": [
-              {
-                "type": "coupon_code",
-                "coupon_code": offerCode
-              }
-            ]
-          }
-        ]
-      }
-    };
-
-    return this.#makeApiCall(messageId, senderPhoneNumberId, requestBody);
-  }
-
-  static async messageWithMediaCardCarousel(messageId, senderPhoneNumberId, recipientPhoneNumber, options) {
-    const { templateName, locale, imageLinks } = options;
-    const requestBody = {
-      "messaging_product": "whatsapp",
-      "recipient_type": "individual",
-      "to": recipientPhoneNumber,
-      "type": "template",
-      "template": {
-        "name": templateName,
-        "language": {
-          "code": locale
-        },
-        "components": [
-          {
-            "type": "carousel",
-            "cards": imageLinks.map((imageLink, idx) => ({
-              "card_index": idx,
-              "components": [
-                {
-                  "type": "header",
-                  "parameters": [
-                    {
-                      "type": "image",
-                      "image": {
-                        "link": imageLink
-                      }
-                    }
-                  ]
-                }
-              ]
-            }))
-          }
-        ]
-      }
-    };
-
-    return this.#makeApiCall(messageId, senderPhoneNumberId, requestBody);
-  }
-
-};
+module.exports = { eligible, sendReply, WINDOW_SECONDS };

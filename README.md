@@ -1,145 +1,78 @@
-# Jasper's Market WhatsApp Bot
+# Mr Mobiles WhatsApp automation
 
-Jasper's Market is a fictional grocery brand created to showcase key features of the WhatsApp Business Platform. The bot leverages key features to deliver a great customer experience. Using this demo as inspiration, you can create a delightful WhatsApp experience that leverages both automation and live customer support.
+Mr Mobiles welcome menu and enquiry replies, adapted from Meta's Jasper's Market sample. This version follows the request to continue setup without adding a payment method.
 
-[Access the WhatsApp experience](https://wa.me/15558813169?text=Get+started)
+## Implemented
 
-See the [Developer Documentation on this experience](https://developers.facebook.com/documentation/business-messaging/whatsapp/overview).
+- Bilingual welcome menu: phones, repairs, accessories, order/repair enquiries and shop contact.
+- Signed webhook verification, a health endpoint and a Vercel Web Handler.
+- Outbound messaging defaults to **disabled**. The only sending mode is **test**, restricted to a configured Meta test phone-number ID and an explicit list of the owner's verified recipients.
+- Customer-initiated text/list replies within 24 hours of an incoming message. All template sends are blocked.
+- No billing API, payment credentials, payment method creation, paid messaging provider or paid monitoring.
+- Node's built-in test runner, with no runtime npm dependencies.
 
-# Setting up your WhatsApp App
+**This is prepared integration code, not proof of an activated WhatsApp account.** A successful deployment or health response does not verify Meta credentials, webhook subscription, phone ownership, message delivery or mobile app login.
 
-## Requirements
+## Run and test
 
-- **Meta Developer Account:** Required to create new apps, which are the core of any Meta integration. You can create a new developer account by going to the [Meta Developers website](https://developers.facebook.com/) and clicking the "Get Started" button.
-- **Meta App:** Contains the settings for your WhatsApp automation, including access tokens. To create a new app, visit your [app dashboard](https://developers.facebook.com/apps).
-- **Meta Business:** This is a pre-requisite for building with WhatsApp. If you don't have a business, you can create one in the app creation flow.
-- **WhatsApp Business Account:** This is needed to send and receive messages in WhatsApp. To create a new WhatsApp Business account, visit [Meta Business Suite](https://business.facebook.com/latest).
+Use Node.js 22.
 
-## Setup Steps
-
-Before you begin, make sure you have completed all of the requirements listed above. At this point you should have a Business and a registered Meta App.
-
-#### Get the App id, App Secret, App Token, and Waba id
-
-1. Go to your app Basic Settings, [Find your app here](https://developers.facebook.com/apps)
-2. Save the **App ID** number and the **App Secret**
-3. Go to your Business in Meta Business Suite and find your desired WhatsApp Business Account under the WhatsApp tab.
-4. Save the **Waba ID**
-5. Create a system user token for your app. Save this **App token**. [Find instructions here](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started#1--acquire-an-access-token-using-a-system-user-or-facebook-login)
-
-#### Grant WhatsApp access to your developer app
-
-1. Go to your app Dashboard
-2. Under _Add Product_ find _WhatsApp_ and click _Set Up_
-3. Now you should be in the App's WhatsApp Settings.
-4. Navigate to the _Configuration_ tab.
-
-# Installation
-
-Clone this repository on your local machine:
-
-```bash
-$ git clone git@github.com:fbsamples/whatsapp-business-jaspers-market.git
-$ cd whatsapp-business-jaspers-market
-```
-
-You will need:
-
-- [Node](https://nodejs.org/en/) 10.x or higher
-- Remote server service, a local tunneling service such as [ngrok](https://ngrok.com/), or your own webserver.
-
-# Usage
-
-## Using ngrok
-
-#### 1. Setup templates
-In order for the app to send templated messages, you need to first create those templates under your WhatsApp Business Account. You can either do this by running `./template.sh` or through [WhatsApp Manager](https://business.facebook.com/latest/whatsapp_manager/message_templates).
-
-#### 2. Install Redis
-If not already installed, install redis via [download](https://redis.io/docs/latest/operate/oss_and_stack/install/install-stack/).
-
-You can then start a redis daemon locally via command line:
-
-```bash
-redis-server --daemonize yes
-```
-
-#### 3. Install tunneling service
-
-If not already installed, install ngrok via [download](https://ngrok.com/download) or via command line:
-
-```bash
-npm install -g ngrok
-```
-
-In the directory of this repo, request a tunnel to your local server with your preferred port
-```bash
-ngrok http 8080
-```
-
-The screen should show the ngrok status:
-
-```
-Session Status                online
-Account                       Redacted (Plan: Free)
-Version                       2.3.35
-Region                        United States (us)
-Web Interface                 http://127.0.0.1:4040
-Forwarding                    http://1c3b838deacb.ngrok.io -> http://localhost:3000
-Forwarding                    https://1c3b838deacb.ngrok.io -> http://localhost:3000
-
-Connections                   ttl     opn     rt1     rt5     p50     p90
-                              0       0       0.00    0.00    0.00    0.00
-```
-Note the https URL of the external server that is forwarded to your local machine. In the above example, it is `https://1c3b838deacb.ngrok.io`.
-
-#### 4. Install the dependencies
-
-Open a new terminal tab, also in the repo directory.
-
-```bash
-$ npm install
-```
-
-Alternatively, you can use [Yarn](https://yarnpkg.com/en/):
-
-```bash
-$ yarn install
-```
-
-#### 5. Set up .env file
-
-Copy the file `.sample.env` to `.env`
-
-```bash
+~~~sh
 cp .sample.env .env
-```
+npm test
+npm start
+~~~
 
-Edit the `.env` file to add all the saved secrets. Note that `VERIFY_TOKEN` will be a passphrase you create that will handshake your app with webhook subscription process.
+The local server uses port 8080. Do not commit .env, access tokens, app secrets or verification tokens.
 
-#### 6. Run your app locally
+## Continue without adding payment details
 
-```bash
-node app.js
-```
+1. Open your own Meta developer app's WhatsApp API setup. Use the **Meta-provided test number**, not a randomly typed number or your personal WhatsApp number. Meta documents that test accounts/numbers do not require a payment method.
+2. Add your own receiving WhatsApp number as a test recipient and complete Meta's verification on your own device.
+3. Set these values privately in the existing Vercel project's environment settings:
 
-#### 7. Configure your webhook subscription
+| Variable | Value |
+| --- | --- |
+| ACCESS_TOKEN | Token for the matching Meta test account; temporary tokens expire |
+| APP_SECRET | Secret for the same Meta app |
+| VERIFY_TOKEN | New random secret for the webhook handshake |
+| TEST_PHONE_NUMBER_ID | Actual Meta test phone-number ID, not the displayed telephone number |
+| TEST_RECIPIENTS | Your verified recipient digits with country code, comma separated, without a plus sign |
+| SEND_MODE | test, only after checking the test number and recipient |
+| GRAPH_API_VERSION | v23.0 |
+| SHOP_ADDRESS | Confirmed shop address, otherwise Hosur, Tamil Nadu |
 
-Use the `VERIFY_TOKEN` that you created in `.env` file and subscribe your webhook server's URL for WhatsApp webhooks in your developer page's _Configuration_ tab. Make sure to subscribe to the messages field. Note that the app listens to webhooks on the `/webhook` endpoint.
+4. Redeploy. Use https://YOUR-EXISTING-DEPLOYMENT/webhook as the callback URL and your VERIFY_TOKEN. Subscribe to the messages webhook field for the correct WhatsApp account.
+5. From your approved recipient, initiate a WhatsApp conversation with the test number. Check the welcome menu and its five choices. This is the end-to-end activation check.
 
-#### 8. Test that your app setup is successful
+No payment method should be added. If Meta requires billing for a production account, stop that production onboarding; this code does not bypass account requirements. Do not configure a production number as TEST_PHONE_NUMBER_ID. The application cannot independently attest that an ID is Meta's test number.
 
-Send a message to your WhatsApp Business Account from a consumer WhatsApp number.
+## Routes and deployment
 
-You should see the webhook called in the ngrok terminal tab, and in your application terminal tab.
+- GET / and GET /health: server and local configuration status, without secrets.
+- GET /webhook: Meta subscription challenge.
+- POST /webhook: signed incoming events.
+- /api/webhook: equivalent Vercel function route.
 
-If you see a response to your message in WhatsApp, you have fully set up your app! Voilà!
+The existing GitHub-to-Vercel integration can deploy this repository. The build runs the test suite and maps the webhook routes to a Node.js Web Handler. Sensitive configuration belongs in Vercel environment variables; deployment does not populate it automatically.
 
-## License
+The original Datadog example is disabled. This project does not provision another server, database or subscription.
 
-Sample WhatsApp App Jasper's Market is Apache 2.0 licensed, as found in the LICENSE file.
+## Current limits
 
-See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
+This is a controlled test setup, not a production inbox. Replies provide enquiry guidance and contact details; they do not look up inventory, open repair tickets, retrieve order status, notify staff or collect payments. Confirm the supplied shop email and website are operational before customer use.
 
-Terms of Use - https://opensource.facebook.com/legal/terms
-Privacy Policy - https://opensource.facebook.com/legal/privacy
+Duplicate suppression is bounded and stored in memory for one process. A restart or another serverless instance can repeat a reply. Production use requires durable idempotency, an authenticated inbox and confirmed Meta billing/number eligibility. Production sending is deliberately unsupported here.
+
+This does not register a number in the WhatsApp Business mobile app, retrieve an SMS/voice OTP, or guarantee that the phone number will be hidden. Cloud API setup and mobile-app onboarding are separate tasks and must follow the account's supported Meta onboarding flow.
+
+## Official references
+
+- [Meta platform and test accounts](https://developers.facebook.com/documentation/business-messaging/whatsapp/about-the-platform)
+- [Meta getting started](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started)
+- [Meta business phone numbers](https://developers.facebook.com/documentation/business-messaging/whatsapp/business-phone-numbers/phone-numbers)
+- [Vercel Node.js functions](https://vercel.com/docs/functions/runtimes/node-js)
+
+## Attribution and license
+
+Originally based on Meta's Jasper's Market WhatsApp example. The original repository license is retained in LICENSE. The Mr Mobiles implementation replaces the fictional grocery and template-promotion flows.

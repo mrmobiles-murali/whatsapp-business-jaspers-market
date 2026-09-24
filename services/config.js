@@ -1,40 +1,28 @@
-/**
- * Copyright 2021-present, Facebook, Inc. All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+'use strict';
 
-"use strict";
+function readConfig(env = process.env) {
+  const value = key => (env[key] || '').trim();
+  return Object.freeze({
+    mode: value('SEND_MODE') || 'disabled',
+    accessToken: value('ACCESS_TOKEN'),
+    appSecret: value('APP_SECRET'),
+    verifyToken: value('VERIFY_TOKEN'),
+    testPhoneNumberId: value('TEST_PHONE_NUMBER_ID'),
+    testRecipients: value('TEST_RECIPIENTS').split(',').map(v => v.trim()).filter(Boolean),
+    graphVersion: value('GRAPH_API_VERSION') || 'v23.0',
+    email: 'contact@mrmobiles.in',
+    website: 'https://mrmobiles.in',
+    address: value('SHOP_ADDRESS') || 'Hosur, Tamil Nadu'
+  });
+}
 
-// Use dotenv to read .env vars into Node
-require("dotenv").config();
+function missingConfiguration(config) {
+  const required = [
+    ['ACCESS_TOKEN', config.accessToken], ['APP_SECRET', config.appSecret],
+    ['VERIFY_TOKEN', config.verifyToken], ['TEST_PHONE_NUMBER_ID', config.testPhoneNumberId],
+    ['TEST_RECIPIENTS', config.testRecipients.length]
+  ];
+  return required.filter(([, value]) => !value).map(([key]) => key);
+}
 
-// Required environment variables
-const ENV_VARS = [
-  "ACCESS_TOKEN",
-  "APP_SECRET",
-  "VERIFY_TOKEN",
-  "REDIS_HOST",
-  "REDIS_PORT"
-];
-
-module.exports = Object.freeze({
-  // Application information
-  appSecret: process.env.APP_SECRET,
-  accessToken: process.env.ACCESS_TOKEN,
-  verifyToken: process.env.VERIFY_TOKEN,
-
-  // Server configuration
-  port: process.env.PORT || 8080,
-  redisHost: process.env.REDIS_HOST || "localhost",
-  redisPort: process.env.REDIS_PORT || 6379,
-
-  checkEnvVariables: function () {
-    ENV_VARS.forEach(function (key) {
-      if (!process.env[key]) {
-        console.warn("WARNING: Missing the environment variable " + key);
-      }
-    });
-  }
-});
+module.exports = { readConfig, missingConfiguration };

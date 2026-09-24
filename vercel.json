@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm test",
+  "outputDirectory": null,
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/webhook"
+    },
+    {
+      "source": "/webhook",
+      "destination": "/api/webhook"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/webhook"
+    },
+    {
+      "source": "/healthz",
+      "destination": "/api/webhook"
+    }
+  ],
+  "functions": {
+    "api/webhook.mjs": {
+      "maxDuration": 30
+    }
+  }
+}
